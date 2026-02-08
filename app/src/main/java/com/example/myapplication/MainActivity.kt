@@ -58,18 +58,17 @@ data class WorkoutMeta(
 
 enum class TopTab(val label: String) { RECOMMEND("Recommend"), COURSES("Courses"), PLANS("Plans"), ROUTES("Routes") }
 
-// ✅ 只保留 Home + Settings（Workout/Community 已删除）
+// ✅ 只保留 Home + Settings
 enum class BottomTab(val label: String) { HOME("Home"), SETTINGS("Settings") }
 
+// ✅ 已删除 Challenge / More
 enum class QuickFeature(val label: String) {
     FIND_COURSES("Find Courses"),
     RUNNING("Running"),
     MOVES("Moves"),
     LIVE("Live"),
     YOGA("Yoga"),
-    WALKING("Walking"),
-    CHALLENGE("Challenge"),
-    MORE("More")
+    WALKING("Walking")
 }
 
 /* -------------------- Activity -------------------- */
@@ -85,7 +84,6 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun AppRoot() {
-    // ✅ 全局 Dark Mode 状态
     var darkMode by rememberSaveable { mutableStateOf(false) }
 
     PulseTheme(darkMode = darkMode) {
@@ -93,6 +91,7 @@ fun AppRoot() {
 
         NavHost(navController = nav, startDestination = "login") {
             composable("login") { LoginScreen(nav) }
+
             composable("main") {
                 MainScreen(
                     nav = nav,
@@ -158,14 +157,6 @@ fun AppRoot() {
                     onBack = { nav.popBackStack() }
                 )
             }
-
-            composable("challenge") { ChallengeScreen(onBack = { nav.popBackStack() }) }
-
-            // ✅ More（可点）
-            composable("more") { MoreScreen(nav = nav, onBack = { nav.popBackStack() }) }
-            composable("nutrition") { NutritionDetailScreen(onBack = { nav.popBackStack() }) }
-            composable("equipment") { EquipmentDetailScreen(onBack = { nav.popBackStack() }) }
-            composable("help") { HelpDetailScreen(onBack = { nav.popBackStack() }) }
 
             composable(
                 route = "category/{name}",
@@ -263,8 +254,6 @@ fun MainScreen(
             QuickFeature.LIVE -> nav.navigate("live")
             QuickFeature.YOGA -> nav.navigate("category/${Uri.encode("Yoga")}")
             QuickFeature.WALKING -> nav.navigate("category/${Uri.encode("Walking")}")
-            QuickFeature.CHALLENGE -> nav.navigate("challenge")
-            QuickFeature.MORE -> nav.navigate("more")
         }
     }
 
@@ -374,7 +363,7 @@ fun MainScreen(
     }
 }
 
-/* -------------------- Recommend Page -------------------- */
+/* -------------------- Recommend Page (Search + Quick + List) -------------------- */
 
 @Composable
 fun RecommendPage(
@@ -392,21 +381,21 @@ fun RecommendPage(
         WorkoutMeta("Full Body Stretch", "K1", 10, TimerMode.COUNTDOWN)
     )
 
+    // ✅ 已删除 Challenge / More
     val quick = listOf(
         QuickFeature.FIND_COURSES,
         QuickFeature.RUNNING,
         QuickFeature.MOVES,
         QuickFeature.LIVE,
         QuickFeature.YOGA,
-        QuickFeature.WALKING,
-        QuickFeature.CHALLENGE,
-        QuickFeature.MORE
+        QuickFeature.WALKING
     )
 
     val results = remember(query, searchPool) {
         val q = query.trim()
         if (q.isBlank()) emptyList()
-        else searchPool.distinctBy { it.title }
+        else searchPool
+            .distinctBy { it.title }
             .filter { it.title.contains(q, ignoreCase = true) }
             .take(6)
     }
@@ -465,9 +454,10 @@ fun RecommendPage(
         item {
             Card(shape = RoundedCornerShape(16.dp)) {
                 Box(Modifier.padding(12.dp)) {
+                    // ✅ 6 个功能建议 3 列更好看
                     LazyVerticalGrid(
-                        columns = GridCells.Fixed(4),
-                        modifier = Modifier.height(180.dp),
+                        columns = GridCells.Fixed(3),
+                        modifier = Modifier.height(160.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
@@ -507,16 +497,15 @@ fun QuickEntryItem(title: String, onClick: () -> Unit) {
             Modifier.size(44.dp).clip(CircleShape)
                 .background(MaterialTheme.colorScheme.primaryContainer),
             contentAlignment = Alignment.Center
-        ) {
-            Text(title.take(1), fontWeight = FontWeight.Bold)
-        }
+        ) { Text(title.take(1), fontWeight = FontWeight.Bold) }
+
         Text(title, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
 @Composable
 fun RecommendCard(item: WorkoutMeta, onStart: () -> Unit) {
-    // drawable: abs_beginner / hiit_fat_burn / full_body_stretch
+    // 你的文件名：abs_beginner.jpg / hiit_fat_burn.jpg / full_body_stretch.jpg
     val imageRes = when (item.title) {
         "Abs Beginner" -> R.drawable.abs_beginner
         "Standing HIIT Fat Burn" -> R.drawable.hiit_fat_burn
@@ -703,7 +692,7 @@ fun TrainingSessionScreen(
     }
 }
 
-/* -------------------- Quick Feature Screens -------------------- */
+/* -------------------- Moves / Live / Category -------------------- */
 
 @Composable
 fun MovesScreen(onOpen: (String) -> Unit, onBack: () -> Unit) {
@@ -725,22 +714,6 @@ fun CategoryScreen(name: String, onOpen: (String) -> Unit, onBack: () -> Unit) {
         else -> listOf("$name Session A", "$name Session B", "$name Session C")
     }
     SimpleTopListScreen(name, list, "Open", onOpen, onBack)
-}
-
-@Composable
-fun ChallengeScreen(onBack: () -> Unit) {
-    Scaffold(
-        topBar = {
-            TopAppBar(title = { Text("Challenge") }, navigationIcon = { TextButton(onClick = onBack) { Text("Back") } })
-        }
-    ) { padding ->
-        Column(Modifier.padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("Weekly Challenges", fontWeight = FontWeight.Bold)
-            Card(shape = RoundedCornerShape(16.dp)) { Column(Modifier.padding(16.dp)) { Text("• 3-Day Plank Challenge") } }
-            Card(shape = RoundedCornerShape(16.dp)) { Column(Modifier.padding(16.dp)) { Text("• 7-Day Walking Streak") } }
-            Card(shape = RoundedCornerShape(16.dp)) { Column(Modifier.padding(16.dp)) { Text("• HIIT x 5 Sessions") } }
-        }
-    }
 }
 
 @Composable
@@ -768,105 +741,6 @@ fun SimpleTopListScreen(
                 }
             }
         }
-    }
-}
-
-/* -------------------- More (Clickable + Detail Content) -------------------- */
-
-@Composable
-fun MoreScreen(nav: NavHostController, onBack: () -> Unit) {
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("More") },
-                navigationIcon = { TextButton(onClick = onBack) { Text("Back") } }
-            )
-        }
-    ) { padding ->
-        Column(
-            Modifier.padding(padding).padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            MoreItem("Nutrition Tips") { nav.navigate("nutrition") }
-            MoreItem("Equipment") { nav.navigate("equipment") }
-            MoreItem("Help & Support") { nav.navigate("help") }
-        }
-    }
-}
-
-@Composable
-fun MoreItem(title: String, onClick: () -> Unit) {
-    Card(
-        shape = RoundedCornerShape(16.dp),
-        modifier = Modifier.fillMaxWidth().clickable { onClick() }
-    ) {
-        Row(
-            Modifier.fillMaxWidth().padding(18.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(title, style = MaterialTheme.typography.bodyLarge)
-            Text("Open", style = MaterialTheme.typography.bodySmall)
-        }
-    }
-}
-
-@Composable
-fun NutritionDetailScreen(onBack: () -> Unit) {
-    DetailScaffold(title = "Nutrition Tips", onBack = onBack) {
-        InfoCard("Drink water before and after training.")
-        InfoCard("Eat protein after workouts (eggs, chicken, milk).")
-        InfoCard("Avoid sugary drinks and fried food.")
-        InfoCard("Keep a regular meal schedule.")
-    }
-}
-
-@Composable
-fun EquipmentDetailScreen(onBack: () -> Unit) {
-    DetailScaffold(title = "Equipment", onBack = onBack) {
-        InfoCard("Yoga mat – for yoga and stretching.")
-        InfoCard("Dumbbells – strength training.")
-        InfoCard("Resistance band – warm-up & rehab.")
-        InfoCard("Running shoes – protect knees and ankles.")
-    }
-}
-
-@Composable
-fun HelpDetailScreen(onBack: () -> Unit) {
-    DetailScaffold(title = "Help & Support", onBack = onBack) {
-        InfoCard("FAQ: Training & timer issues.")
-        InfoCard("Contact: support@pulse.demo")
-        InfoCard("Feedback: Report bugs and suggestions.")
-        InfoCard("Privacy: Your data is stored locally (demo).")
-    }
-}
-
-@Composable
-fun DetailScaffold(title: String, onBack: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(title) },
-                navigationIcon = { TextButton(onClick = onBack) { Text("Back") } }
-            )
-        }
-    ) { padding ->
-        Column(
-            Modifier.padding(padding).padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            content = content
-        )
-    }
-}
-
-@Composable
-fun InfoCard(text: String) {
-    Card(shape = RoundedCornerShape(14.dp)) {
-        Text(
-            text = text,
-            modifier = Modifier.padding(16.dp),
-            style = MaterialTheme.typography.bodyMedium
-        )
     }
 }
 
@@ -914,7 +788,6 @@ fun SettingsPage(
             Text("Preferences", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         }
 
-        // ✅ 点了就全局变黑/变亮
         item { SettingToggle("Dark Mode", darkMode) { onDarkModeChange(it) } }
 
         item {
