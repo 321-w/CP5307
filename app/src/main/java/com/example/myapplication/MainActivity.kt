@@ -5,22 +5,24 @@ package com.example.myapplication
 import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -116,7 +118,7 @@ fun AppRoot() {
                     minutes = minutes,
                     mode = mode,
                     nav = nav,
-                    onBack = { nav.popBackStack() }
+                    onBack = { nav.popBackStack() } // ✅ 永远回上一层
                 )
             }
 
@@ -131,12 +133,13 @@ fun AppRoot() {
                 val title = backStack.arguments?.getString("title") ?: "Workout"
                 val minutes = backStack.arguments?.getInt("minutes") ?: 10
                 val mode = TimerMode.valueOf(backStack.arguments?.getString("mode") ?: "COUNTDOWN")
+
                 TrainingSessionScreen(
                     title = title,
                     minutes = minutes,
                     mode = mode,
-                    onBack = { nav.popBackStack() },
-                    onFinish = { nav.popBackStack("main", inclusive = false) }
+                    onBack = { nav.popBackStack() },   // ✅ 回上一层（回 Training Detail）
+                    onFinish = { nav.popBackStack() }  // ✅ 只退一层（不跳 main）
                 )
             }
 
@@ -235,8 +238,22 @@ fun MainScreen(
     darkMode: Boolean,
     onDarkModeChange: (Boolean) -> Unit
 ) {
-    var topTab by remember { mutableStateOf(TopTab.RECOMMEND) }
-    var bottomTab by remember { mutableStateOf(BottomTab.HOME) }
+    // ✅ 关键修复：用 rememberSaveable 保存 tab 状态，返回时不会跳回 Recommend
+    val topTabSaver = remember {
+        Saver<TopTab, String>(
+            save = { it.name },
+            restore = { TopTab.valueOf(it) }
+        )
+    }
+    val bottomTabSaver = remember {
+        Saver<BottomTab, String>(
+            save = { it.name },
+            restore = { BottomTab.valueOf(it) }
+        )
+    }
+
+    var topTab by rememberSaveable(stateSaver = topTabSaver) { mutableStateOf(TopTab.RECOMMEND) }
+    var bottomTab by rememberSaveable(stateSaver = bottomTabSaver) { mutableStateOf(BottomTab.HOME) }
 
     val openTrainingMeta: (WorkoutMeta) -> Unit = { w ->
         nav.navigate("training/${Uri.encode(w.title)}/${w.minutes}/${w.mode.name}")
@@ -310,6 +327,7 @@ fun MainScreen(
                             WorkoutMeta("5 km City Loop", "Route", 0, TimerMode.STOPWATCH),
                             WorkoutMeta("10 km Long Run", "Route", 0, TimerMode.STOPWATCH),
 
+                            // Yoga / Walking 仍然在列表里，但不会用任何 yoga 图片
                             WorkoutMeta("Yoga Beginner", "K1", 10, TimerMode.COUNTDOWN),
                             WorkoutMeta("Yoga Stretch", "K1", 12, TimerMode.COUNTDOWN),
                             WorkoutMeta("Yoga Balance", "K2", 15, TimerMode.COUNTDOWN),
@@ -381,7 +399,6 @@ fun RecommendPage(
         WorkoutMeta("Full Body Stretch", "K1", 10, TimerMode.COUNTDOWN)
     )
 
-    // ✅ 已删除 Challenge / More
     val quick = listOf(
         QuickFeature.FIND_COURSES,
         QuickFeature.RUNNING,
@@ -454,7 +471,6 @@ fun RecommendPage(
         item {
             Card(shape = RoundedCornerShape(16.dp)) {
                 Box(Modifier.padding(12.dp)) {
-                    // ✅ 6 个功能建议 3 列更好看
                     LazyVerticalGrid(
                         columns = GridCells.Fixed(3),
                         modifier = Modifier.height(160.dp),
@@ -505,12 +521,12 @@ fun QuickEntryItem(title: String, onClick: () -> Unit) {
 
 @Composable
 fun RecommendCard(item: WorkoutMeta, onStart: () -> Unit) {
-    // 你的文件名：abs_beginner.jpg / hiit_fat_burn.jpg / full_body_stretch.jpg
-    val imageRes = when (item.title) {
+    // ✅ 只给“推荐三项”配置图片；其它不匹配就不显示图片（不顶替）
+    val imageRes: Int? = when (item.title) {
         "Abs Beginner" -> R.drawable.abs_beginner
         "Standing HIIT Fat Burn" -> R.drawable.hiit_fat_burn
         "Full Body Stretch" -> R.drawable.full_body_stretch
-        else -> R.drawable.abs_beginner
+        else -> null
     }
 
     Card(shape = RoundedCornerShape(16.dp)) {
@@ -519,12 +535,19 @@ fun RecommendCard(item: WorkoutMeta, onStart: () -> Unit) {
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Image(
-                painter = painterResource(id = imageRes),
-                contentDescription = item.title,
-                modifier = Modifier.size(72.dp).clip(RoundedCornerShape(12.dp)),
-                contentScale = ContentScale.Crop
-            )
+            if (imageRes != null) {
+                Image(
+                    painter = painterResource(id = imageRes),
+                    contentDescription = item.title,
+                    modifier = Modifier.size(72.dp).clip(RoundedCornerShape(12.dp)),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Box(
+                    modifier = Modifier.size(72.dp).clip(RoundedCornerShape(12.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                )
+            }
 
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(item.title, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -588,6 +611,16 @@ fun TrainingScreen(
     nav: NavHostController,
     onBack: () -> Unit
 ) {
+    BackHandler { onBack() } // ✅ 系统返回键回上一层
+
+    // ✅ 只允许三张推荐图；Yoga 的三张图彻底不使用；其它标题全部不显示图
+    val imageRes: Int? = when (title) {
+        "Abs Beginner" -> R.drawable.abs_beginner
+        "Standing HIIT Fat Burn" -> R.drawable.hiit_fat_burn
+        "Full Body Stretch" -> R.drawable.full_body_stretch
+        else -> null
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -600,6 +633,17 @@ fun TrainingScreen(
             Modifier.padding(padding).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
+            if (imageRes != null) {
+                Card(shape = RoundedCornerShape(18.dp)) {
+                    Image(
+                        painter = painterResource(id = imageRes),
+                        contentDescription = title,
+                        modifier = Modifier.fillMaxWidth().height(190.dp),
+                        contentScale = ContentScale.Crop
+                    )
+                }
+            }
+
             Text(title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
 
             Card(shape = RoundedCornerShape(16.dp)) {
@@ -629,6 +673,8 @@ fun TrainingSessionScreen(
     onBack: () -> Unit,
     onFinish: () -> Unit
 ) {
+    BackHandler { onBack() }
+
     var running by remember { mutableStateOf(true) }
 
     val totalSeconds = (minutes.coerceAtLeast(0)) * 60
@@ -757,6 +803,37 @@ fun SettingsPage(
     var soundOn by remember { mutableStateOf(true) }
     var vibrationOn by remember { mutableStateOf(true) }
 
+    // ✅ Body Metrics (输入用 String 更稳定)
+    var heightCmText by rememberSaveable { mutableStateOf("") }
+    var weightKgText by rememberSaveable { mutableStateOf("") }
+    var ageText by rememberSaveable { mutableStateOf("") }
+    var isMale by rememberSaveable { mutableStateOf(true) }
+
+    fun parsePositiveFloat(text: String): Float? {
+        val v = text.trim().toFloatOrNull() ?: return null
+        return if (v > 0f) v else null
+    }
+
+    fun parsePositiveInt(text: String): Int? {
+        val v = text.trim().toIntOrNull() ?: return null
+        return if (v > 0) v else null
+    }
+
+    val heightCm = parsePositiveFloat(heightCmText)
+    val weightKg = parsePositiveFloat(weightKgText)
+    val age = parsePositiveInt(ageText)
+
+    val bmi: Float? = if (heightCm != null && weightKg != null) {
+        val hM = heightCm / 100f
+        (weightKg / (hM * hM))
+    } else null
+
+    // Deurenberg estimate: BF% = 1.20*BMI + 0.23*Age - 10.8*Sex - 5.4
+    val bodyFatPercent: Float? = if (bmi != null && age != null) {
+        val sex = if (isMale) 1f else 0f
+        (1.20f * bmi + 0.23f * age - 10.8f * sex - 5.4f)
+    } else null
+
     LazyColumn(
         modifier = modifier.fillMaxSize().padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp)
@@ -782,6 +859,82 @@ fun SettingsPage(
 
         item { SettingToggle("Countdown Sound", soundOn) { soundOn = it } }
         item { SettingToggle("Vibration Feedback", vibrationOn) { vibrationOn = it } }
+
+        item {
+            Spacer(Modifier.height(6.dp))
+            Text("Body Metrics", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        }
+
+        item {
+            Card(shape = RoundedCornerShape(16.dp)) {
+                Column(
+                    Modifier.fillMaxWidth().padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                        OutlinedTextField(
+                            value = heightCmText,
+                            onValueChange = { heightCmText = it },
+                            label = { Text("Height (cm)") },
+                            singleLine = true,
+                            modifier = Modifier.weight(1f)
+                        )
+                        OutlinedTextField(
+                            value = weightKgText,
+                            onValueChange = { weightKgText = it },
+                            label = { Text("Weight (kg)") },
+                            singleLine = true,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                        OutlinedTextField(
+                            value = ageText,
+                            onValueChange = { ageText = it },
+                            label = { Text("Age") },
+                            singleLine = true,
+                            modifier = Modifier.weight(1f)
+                        )
+
+                        Column(Modifier.weight(1f)) {
+                            Text("Sex", style = MaterialTheme.typography.bodySmall)
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                FilterChip(
+                                    selected = isMale,
+                                    onClick = { isMale = true },
+                                    label = { Text("Male") }
+                                )
+                                FilterChip(
+                                    selected = !isMale,
+                                    onClick = { isMale = false },
+                                    label = { Text("Female") }
+                                )
+                            }
+                        }
+                    }
+
+                    Divider()
+
+                    val bmiText = bmi?.let { String.format("%.1f", it) } ?: "--"
+                    val bfText = bodyFatPercent?.let { String.format("%.1f%%", it.coerceIn(0f, 60f)) } ?: "--"
+
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("BMI", fontWeight = FontWeight.SemiBold)
+                        Text(bmiText)
+                    }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Body Fat (estimate)", fontWeight = FontWeight.SemiBold)
+                        Text(bfText)
+                    }
+
+                    Text(
+                        "Note: Body fat is an estimate based on BMI + age + sex.",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            }
+        }
 
         item {
             Spacer(Modifier.height(6.dp))
