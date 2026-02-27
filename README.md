@@ -1,8 +1,7 @@
-#Pulse – Utility App (CP5307)
+# Pulse – Utility App (CP5307)
 
 This is an Android application developed for Assessment 1: Utility App in CP5307.
 It extends the starter structure using Jetpack Compose and Material Design 3 to implement a fitness-focused utility application.
-
 Pulse is designed as a lightweight fitness utility tool that provides quick workout access and simple health metric calculations in an at-a-glance format.
 
 ---
@@ -46,18 +45,18 @@ Pulse is designed as a lightweight fitness utility tool that provides quick work
 
 ### SettingsPage()
 - Allows users to configure:
-- Training intensity (Easy / Normal / Hard)
-- Countdown sound toggle
-- Vibration feedback toggle
-- Dark mode toggle
+    - Training intensity (Easy / Normal / Hard)
+    - Countdown sound toggle
+    - Vibration feedback toggle
+    - Dark mode toggle
 - Accepts body metric input:
-    Height
-    Weight
-    Age
-    Sex
+    - Height
+    - Weight
+    - Age
+    - Sex
 - Dynamically calculates:
-    BMI
-    Estimated Body Fat Percentage
+    - BMI
+    - Estimated Body Fat Percentage
 
 ---
 
